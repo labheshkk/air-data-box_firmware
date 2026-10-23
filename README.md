@@ -22,7 +22,7 @@ Platform/stm32h7      board_config.h adb_platform.[ch] app_main.c   HAL glue (fi
 Platform/stub         host-only HAL stub for syntax checking
 Tests                 8 host test suites + Makefile
 scripts               check.sh (quality gate), mutation_check.sh
-docs                  ARCHITECTURE, datasheet_verification, assumptions_open_questions, TEST_PLAN, hardware_checklist, CODING_STANDARD, REVIEW_QA
+docs                  ARCHITECTURE
 ```
 
 ## Quality gate (host: gcc + make)
