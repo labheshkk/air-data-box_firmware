@@ -1,0 +1,7 @@
+# Style baseline (not yet applied repo-wide; existing files use a compatible compact style)
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 110
+AllowShortFunctionsOnASingleLine: Empty
+BreakBeforeBraces: Linux
+PointerAlignment: Right

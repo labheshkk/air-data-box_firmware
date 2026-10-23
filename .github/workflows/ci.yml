@@ -1,0 +1,10 @@
+# NOTE: authored but not yet executed on GitHub (no remote run available when written).
+name: ci
+on: [push, pull_request]
+jobs:
+  host-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static analysis + host unit tests
+        run: ./scripts/check.sh
