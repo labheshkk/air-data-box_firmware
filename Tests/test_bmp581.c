@@ -76,8 +76,10 @@ static adb_bus_t bus_of(mock_t *m)
 }
 static const bmp581_config_t CFG = { .osr_p = BMP581_OSR_X4, .osr_t = BMP581_OSR_X1, .odr = 0x0F };
 
+/* Like the real chip: INT_STATUS only reports sources that are enabled in INT_SOURCE (0x15). */
 static void inject(mock_t *m, int32_t t_q16, int32_t p_q6, uint8_t int_status)
 {
+    if (!(m->reg[0x15] & 0x01)) int_status = (uint8_t)(int_status & ~0x01u);   /* drdy not enabled -> never asserts */
     uint32_t t = (uint32_t)t_q16 & 0xFFFFFFu, p = (uint32_t)p_q6 & 0xFFFFFFu;
     m->reg[0x1D] = (uint8_t)t; m->reg[0x1E] = (uint8_t)(t >> 8); m->reg[0x1F] = (uint8_t)(t >> 16);
     m->reg[0x20] = (uint8_t)p; m->reg[0x21] = (uint8_t)(p >> 8); m->reg[0x22] = (uint8_t)(p >> 16);
@@ -117,6 +119,7 @@ static void init_ok(int is_spi)
     CHECK_EQ_I(bmp581_init(&d, &b, &CFG), ADB_OK);
     CHECK_EQ_I(m.reg[0x36], 0x50);          /* press_en=1, osr_p=x4 (010), osr_t=x1 (000) */
     CHECK_EQ_I(m.reg[0x37], 0xBD);          /* deep_dis=1, odr=0x0F, NORMAL */
+    CHECK_EQ_I(m.reg[0x15], 0x01);          /* INT_SOURCE.drdy_data_reg_en set (reviewer finding: without it drdy never asserts) */
     CHECK_EQ_I(m.ignored_before_dummy, 0);  /* driver did the SPI dummy read first */
 }
 static void test_init_ok_spi(void) { init_ok(1); }
@@ -138,6 +141,18 @@ static void test_init_failures(void)
     mock_init(&m, 0); b = bus_of(&m);
     CHECK_EQ_I(bmp581_init(&d, &b, &bad), ADB_ERR_PARAM);
     CHECK_EQ_I(bmp581_init(&d, NULL, &CFG), ADB_ERR_PARAM);
+}
+static void test_drdy_requires_int_source(void)
+{
+    mock_t m; bmp581_t d; adb_bus_t b; bmp581_sample_t s; bool ns;
+    mock_init(&m, 0); b = bus_of(&m);
+    CHECK_EQ_I(bmp581_init(&d, &b, &CFG), ADB_OK);
+    m.reg[0x15] = 0x00;                                        /* what the OLD driver left behind */
+    inject(&m, 22 * 65536, 98000 * 64, 0x01);
+    CHECK_EQ_I(bmp581_poll(&d, &s, &ns), ADB_OK); CHECK(!ns); /* data present but never flagged: sample would be missed forever */
+    m.reg[0x15] = 0x01;
+    inject(&m, 22 * 65536, 98000 * 64, 0x01);
+    CHECK_EQ_I(bmp581_poll(&d, &s, &ns), ADB_OK); CHECK(ns);
 }
 static void test_poll_flow(void)
 {
@@ -166,7 +181,7 @@ static void test_poll_flow(void)
 int main(void)
 {
     RUN(test_sign_extend); RUN(test_decode); RUN(test_init_ok_spi); RUN(test_init_ok_i2c);
-    RUN(test_init_failures); RUN(test_poll_flow);
+    RUN(test_init_failures); RUN(test_drdy_requires_int_source); RUN(test_poll_flow);
     TEST_SUMMARY();
     return g_tests_failed ? 1 : 0;
 }

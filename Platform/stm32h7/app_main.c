@@ -29,8 +29,17 @@ adb_status_t adb_app_init(void)
     adb_platform_spi_bus(&hw.rsc_adc_bus, &d_rsc_adc);
     adb_platform_spi_bus(&hw.rsc_ee_bus, &d_rsc_ee);
     hw.can_tx = adb_can_tx;
+    hw.can_tx_free = adb_can_tx_free;                     /* RawAirData is skipped, never split, when the FIFO is short */
+    hw.cold_boot = ADB_BOOT_IS_COLD();                  /* auto-zero only after power-on/brown-out, never after an in-flight reset */
+    __HAL_RCC_CLEAR_RESET_FLAGS();
+    hw.zero_load = NULL; hw.zero_store = NULL;          /* TODO(hardware engineer): persist the zero in flash/EEPROM with a CRC so a warm reboot reuses it */
     hw.event = NULL;                                     /* hook a UART/ITM logger here: void (*)(void*, uint16_t code, int32_t arg) */
     app_cfg_t cfg = app_default_cfg();                   /* PROVISIONAL defaults: node 42, 50 Hz output, see docs */
     return app_init(&g_app, &cfg, &hw, adb_time_us());
 }
-void adb_app_step(void) { app_step(&g_app, adb_time_us()); }
+void adb_app_step(void)
+{
+    uint32_t now = adb_time_us();
+    adb_can_service(now);                               /* bus-off recovery runs even if the application is busy or degraded */
+    app_step(&g_app, now);
+}

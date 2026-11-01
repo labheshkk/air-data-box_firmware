@@ -21,6 +21,7 @@
 
 #define DC_DTID_NODE_STATUS          341u
 #define DC_DTID_INDICATED_AIRSPEED   1021u
+#define DC_DTID_RAW_AIR_DATA         1027u
 #define DC_DTID_STATIC_PRESSURE      1028u
 #define DC_DTID_STATIC_TEMPERATURE   1029u
 
@@ -29,7 +30,10 @@
 
 typedef struct { uint32_t id; uint8_t len; uint8_t data[8]; } dc_frame_t;   /* extended 29-bit ID, classic CAN */
 
-typedef struct { uint8_t node_id; uint8_t tid[4]; } dc_node_t;
+#define DC_SIG_RAW_AIR_DATA          0xC77DF38BA122F5DAull   /* data type signature (libcanard show_data_type_info.py output, quoted publicly) */
+#define DC_RAW_AIR_DATA_FRAMES       3u                      /* 17-byte payload + 2-byte CRC = 19 bytes -> 7 + 7 + 5 */
+
+typedef struct { uint8_t node_id; uint8_t tid[5]; } dc_node_t;
 
 typedef enum { DC_MODE_OPERATIONAL = 0, DC_MODE_INITIALIZATION = 1, DC_MODE_MAINTENANCE = 2 } dc_mode_t;
 
@@ -43,5 +47,14 @@ adb_status_t dc_encode_node_status(dc_node_t *n, uint32_t uptime_s, uint8_t heal
 adb_status_t dc_encode_static_pressure(dc_node_t *n, float pressure_pa, float variance_pa2, dc_frame_t *out);
 adb_status_t dc_encode_static_temperature(dc_node_t *n, float temperature_k, float variance_k2, dc_frame_t *out);
 adb_status_t dc_encode_indicated_airspeed(dc_node_t *n, float ias_ms, float variance_ms2, dc_frame_t *out);
+
+/* uavcan.equipment.air_data.RawAirData (1027) - MULTI-FRAME (3 frames, all share one CAN ID and transfer ID).
+ * Fields (spec 7.): flags u8; static_pressure f32 [Pa]; differential_pressure f32 [Pa]; four float16 temperatures [K]
+ * (static sensor, differential sensor, static air, pitot); covariance omitted (empty tail array = valid).
+ * Unused temperatures must be NaN (spec). Pressures must be finite. The caller must queue all three frames
+ * back-to-back and in order (spec 4.1: identical IDs must be transmitted in queue order). */
+adb_status_t dc_encode_raw_air_data(dc_node_t *n, uint8_t flags, float static_pa, float diff_pa,
+                                    float static_sensor_k, float diff_sensor_k, float static_air_k, float pitot_k,
+                                    dc_frame_t out[DC_RAW_AIR_DATA_FRAMES]);
 
 #endif

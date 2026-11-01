@@ -37,6 +37,16 @@ typedef struct {
 #define FDCAN_DLC_BYTES_6 0x00060000u
 #define FDCAN_DLC_BYTES_7 0x00070000u
 #define FDCAN_DLC_BYTES_8 0x00080000u
+typedef struct { uint32_t LastErrorCode, DataLastErrorCode, Activity, ErrorPassive, Warning, BusOff; } FDCAN_ProtocolStatusTypeDef;
+HAL_StatusTypeDef HAL_FDCAN_GetProtocolStatus(FDCAN_HandleTypeDef *hfdcan, FDCAN_ProtocolStatusTypeDef *ProtocolStatus);
+uint32_t HAL_FDCAN_GetTxFifoFreeLevel(FDCAN_HandleTypeDef *hfdcan);
+HAL_StatusTypeDef HAL_FDCAN_Stop(FDCAN_HandleTypeDef *hfdcan);
+HAL_StatusTypeDef HAL_FDCAN_Start(FDCAN_HandleTypeDef *hfdcan);
+#define RCC_FLAG_PORRST 1u
+uint32_t stub_rcc_flag(uint32_t f);
+#define __HAL_RCC_GET_FLAG(f) stub_rcc_flag(f)
+void stub_rcc_clear(void);
+#define __HAL_RCC_CLEAR_RESET_FLAGS() stub_rcc_clear()
 uint32_t stub_tim_counter(TIM_HandleTypeDef *h);
 #define __HAL_TIM_GET_COUNTER(h) stub_tim_counter(h)
 HAL_StatusTypeDef HAL_SPI_Init(SPI_HandleTypeDef *hspi);

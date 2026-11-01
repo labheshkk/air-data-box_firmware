@@ -27,4 +27,10 @@ void     adb_delay_us(uint32_t us);
 /* Classic-CAN, 29-bit ID transmit. Returns false if the TX FIFO is full or the HAL reports an error. */
 bool     adb_can_tx(void *ctx, const dc_frame_t *f);
 
+/* CAN link supervision: call every main-loop pass. Detects bus-off / stuck TX FIFO (policy in Drivers/CAN/can_supervisor)
+ * and restarts the FDCAN controller after a back-off. */
+void     adb_can_service(uint32_t now_us);
+uint32_t adb_can_tx_free(void *ctx);           /* free TX FIFO elements, usable as app_hw_t.can_tx_free */
+uint32_t adb_can_restart_count(void);          /* diagnostics */
+
 #endif

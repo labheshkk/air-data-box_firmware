@@ -31,5 +31,12 @@ mutate Drivers/CAN/dronecan.c 's/0xC0u | (n->tid\[which\] \& 0x1Fu)/0x80u | (n->
 mutate Drivers/CAN/dronecan.c 's/DC_DTID_INDICATED_AIRSPEED/DC_DTID_STATIC_PRESSURE/'        "IAS published under wrong data type ID (no-op if macro only in header)"
 mutate Application/app.c 's/if (o->dp_valid) {/if (0) {/'                                       "airspeed never published"
 mutate Application/app.c 's/a->zero_started_us = (now != 0u) ? now : 1u;/a->zero_started_us = a->zero_started_us ? a->zero_started_us : now;/' "zero timeout not reset per attempt (regression of the bug found earlier)"
+mutate Drivers/BMP581/bmp581.c 's/s = reg_write(d, REG_INT_SOURCE, INT_SRC_DRDY);/s = ADB_OK;/'  "BMP581 data-ready source not enabled (review finding)"
+mutate Application/app.c 's/a->uptime_us += (uint32_t)(now - a->last_step_us);/a->uptime_us = (uint32_t)(now - a->t_boot);/' "NodeStatus uptime wraps with the 32-bit clock (review finding)"
+mutate Application/app.c 's/a->zero_pending = cfg->autozero_on_boot \&\& hw->cold_boot;/a->zero_pending = cfg->autozero_on_boot;/' "auto-zero also after a warm reboot (review finding)"
+mutate Application/app.c 's/< DC_RAW_AIR_DATA_FRAMES) { a->diag.raw_skipped++; return; }/< 1u) { a->diag.raw_skipped++; return; }/' "RawAirData may be split across a full TX FIFO"
+mutate Drivers/CAN/dronecan.c 's/(i == 0u ? 0x80u : 0u)/(i == 0u ? 0xC0u : 0u)/'                "RawAirData first-frame tail byte wrong"
+mutate Drivers/CAN/can_supervisor.c 's/s->backoff_us = (s->backoff_us > s->cfg.backoff_max_us \/ 2u) ? s->cfg.backoff_max_us : s->backoff_us \* 2u;/s->backoff_us = s->cfg.backoff_initial_us;/' "bus-off back-off never grows (restart storm)"
+mutate Drivers/CAN/can_supervisor.c 's/if (tx_free == 0u) {/if (tx_free == 99u) {/'                         "stuck TX FIFO never flushed"
 echo "mutants killed by a failing test: $KILLED, survived: $SURVIVED, invalid (did not compile): $INVALID"
 [ "$SURVIVED" -eq 0 ]

@@ -4,7 +4,7 @@
 #include <string.h>
 #include <stddef.h>
 
-enum { TID_STATUS = 0, TID_STATIC_P, TID_STATIC_T, TID_IAS };
+enum { TID_STATUS = 0, TID_STATIC_P, TID_STATIC_T, TID_IAS, TID_RAW };
 
 adb_status_t dc_init(dc_node_t *n, uint8_t node_id)
 {
@@ -92,5 +92,47 @@ adb_status_t dc_encode_indicated_airspeed(dc_node_t *n, float v, float var, dc_f
     out->id = make_id(DC_PRIO_AIRDATA, (uint16_t)DC_DTID_INDICATED_AIRSPEED, n->node_id);
     put_f16(out->data, v); put_f16(out->data + 2, var);          /* float16 [m/s], float16 [(m/s)^2] */
     out->data[4] = tail(n, TID_IAS); out->len = 5;
+    return ADB_OK;
+}
+
+/* Transfer CRC: CRC-16-CCITT-FALSE over [data type signature, 8 bytes little-endian] + payload (spec 4.1). */
+static uint16_t crc16_add(uint16_t crc, const uint8_t *d, unsigned n)
+{
+    for (unsigned i = 0; i < n; i++) {
+        crc = (uint16_t)(crc ^ (uint16_t)((uint16_t)d[i] << 8));
+        for (int b = 0; b < 8; b++)
+            crc = (crc & 0x8000u) ? (uint16_t)(((unsigned)crc << 1) ^ 0x1021u) : (uint16_t)((unsigned)crc << 1);
+    }
+    return crc;
+}
+
+adb_status_t dc_encode_raw_air_data(dc_node_t *n, uint8_t flags, float sp, float dp, float t_ssens, float t_dsens,
+                                    float t_air, float t_pitot, dc_frame_t out[DC_RAW_AIR_DATA_FRAMES])
+{
+    if (!n || !out || n->node_id == 0u || !isfinite(sp) || !isfinite(dp)) return ADB_ERR_PARAM;
+    uint8_t pl[17];
+    pl[0] = flags;
+    put_f32(pl + 1, sp); put_f32(pl + 5, dp);
+    put_f16(pl + 9, t_ssens); put_f16(pl + 11, t_dsens); put_f16(pl + 13, t_air); put_f16(pl + 15, t_pitot);
+
+    uint8_t sig[8];
+    for (unsigned i = 0; i < 8u; i++) sig[i] = (uint8_t)(DC_SIG_RAW_AIR_DATA >> (8u * i));
+    uint16_t crc = crc16_add(crc16_add(0xFFFFu, sig, 8u), pl, sizeof pl);
+
+    uint8_t tr[2 + sizeof pl];                                  /* CRC is prepended to the payload, little-endian */
+    tr[0] = (uint8_t)crc; tr[1] = (uint8_t)(crc >> 8);
+    memcpy(tr + 2, pl, sizeof pl);
+
+    const uint8_t tid = (uint8_t)(n->tid[TID_RAW] & 0x1Fu);
+    const unsigned total = (unsigned)sizeof tr, nfr = (total + 6u) / 7u;     /* 7 payload bytes + tail per frame */
+    for (unsigned i = 0; i < nfr; i++) {
+        unsigned off = i * 7u, len = (total - off > 7u) ? 7u : total - off;
+        memset(&out[i], 0, sizeof out[i]);
+        out[i].id = make_id(DC_PRIO_AIRDATA, (uint16_t)DC_DTID_RAW_AIR_DATA, n->node_id);   /* identical for every frame */
+        memcpy(out[i].data, tr + off, len);
+        out[i].data[len] = (uint8_t)((i == 0u ? 0x80u : 0u) | (i == nfr - 1u ? 0x40u : 0u) | ((i & 1u) << 5) | tid);
+        out[i].len = (uint8_t)(len + 1u);
+    }
+    n->tid[TID_RAW] = (uint8_t)((n->tid[TID_RAW] + 1u) & 0x1Fu);              /* one increment per TRANSFER */
     return ADB_OK;
 }

@@ -4,6 +4,7 @@
 
 /* Register map - datasheet chapter 7 */
 #define REG_CHIP_ID      0x01u   /* 7.1  reset value 0b01010000 = 0x50                  */
+#define REG_INT_SOURCE   0x15u   /* 7.6  [0] drdy_data_reg_en: INT_STATUS only reports ENABLED sources (4.7.1) */
 #define REG_TEMP_XLSB    0x1Du   /* 7.11 .. 7.16: T XLSB,LSB,MSB then P XLSB,LSB,MSB     */
 #define REG_INT_STATUS   0x27u   /* 7.21 clear-on-read; bit0 drdy, bit3 oor_p, bit4 por */
 #define REG_STATUS       0x28u   /* 7.22 bit1 nvm_rdy, bit2 nvm_err                     */
@@ -18,6 +19,7 @@
 #define PWR_MODE_STANDBY     0x0u
 #define PWR_MODE_NORMAL      0x1u
 
+#define INT_SRC_DRDY (1u << 0)   /* INT_SOURCE.drdy_data_reg_en */
 #define INT_DRDY   (1u << 0)
 #define INT_OOR_P  (1u << 3)
 #define INT_POR    (1u << 4)
@@ -108,6 +110,12 @@ adb_status_t bmp581_init(bmp581_t *d, const adb_bus_t *bus, const bmp581_config_
     if (s != ADB_OK) return s;
     if (!(v & ST_NVM_RDY) || (v & ST_NVM_ERR)) return ADB_ERR_STATE;
 
+    /* INT_STATUS reports only sources enabled in INT_SOURCE (datasheet 4.7.1; reset value 0x00), so the
+     * data-ready source must be enabled or bmp581_poll() would never see a new sample. oor_p_en is NOT set:
+     * its thresholds are not configured here. The INT pin stays inactive (INT_CONFIG untouched). */
+    s = reg_write(d, REG_INT_SOURCE, INT_SRC_DRDY);
+    if (s != ADB_OK) return s;
+
     /* Configure while in STANDBY (device is in standby after reset). */
     uint8_t osr = (uint8_t)((1u << 6) | ((unsigned)cfg->osr_p << 3) | (unsigned)cfg->osr_t);  /* press_en=1 */
     s = reg_write(d, REG_OSR_CONFIG, osr);
@@ -123,6 +131,9 @@ adb_status_t bmp581_init(bmp581_t *d, const adb_bus_t *bus, const bmp581_config_
     s = reg_read(d, REG_ODR_CONFIG, &v, 1);
     if (s != ADB_OK) return s;
     if ((v & 0x3u) != PWR_MODE_NORMAL) return ADB_ERR_CONFIG;
+    s = reg_read(d, REG_INT_SOURCE, &v, 1);                   /* read back: the enable must have stuck */
+    if (s != ADB_OK) return s;
+    if (!(v & INT_SRC_DRDY)) return ADB_ERR_CONFIG;
     return ADB_OK;
 }
 

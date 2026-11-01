@@ -32,7 +32,8 @@ Rule: everything above `adb_bus.h` is portable C11 with no STM32 includes and is
 | Task | Period | Work | Failure behaviour |
 |---|---|---|---|
 | sensor state machines | every call | 0-1 SPI transaction per sensor per call | bus error -> counted, machine restarts its cycle, SensorManager marks health |
-| output | 20 ms | fuse, IAS, altitude, publish StaticPressure + IndicatedAirspeed | invalid -> message withheld, NodeStatus health changes |
+| output | 20 ms | fuse, IAS, altitude, publish StaticPressure + IndicatedAirspeed |
+| raw air data | 50 ms (20 Hz) | RawAirData, 3 frames, only if >= 3 TX slots free | skipped + counted (`raw_skipped`) | invalid -> message withheld, NodeStatus health changes |
 | temperature | 100 ms | StaticTemperature (sensor temperature, **not** outside air) | withheld if no valid sensor |
 | status | 1 s | NodeStatus (health, mode, fault flags in vendor code) | -- |
 | re-init | 1 s per failed sensor | blocking init, ~3 ms (MS5611), ~8 ms (RSC EEPROM read + delays) | stays failed, retried |
@@ -58,8 +59,14 @@ Zero offset: RSC total error band is +/-0.75 %FSS = +/-90 Pa uncorrected, +/-0.2
 equal to ~12 m/s vs ~7 m/s apparent speed at standstill. Hence the boot-time zero procedure (rejected if |offset| > 150 Pa or
 the standard deviation > 3 Pa, i.e. wind on the probe).
 
+## Reliability behaviour added after the preliminary review
+- **Uptime:** NodeStatus uptime is a 64-bit accumulation of wrap-safe deltas (never decreases; the 32-bit us clock wraps every 71.6 min).
+- **CAN link:** `can_supervisor` restarts the controller after bus-off (back-off 100 ms -> 1 s) and flushes a TX FIFO that stays full for 1 s.
+- **Zero safety:** auto-zero only after a cold boot; a stored zero is restored after a warm reboot; acceptance limit 100 Pa; explicit request only otherwise.
+- **Multi-frame safety:** `RawAirData` (3 frames) is skipped entirely when fewer than 3 TX slots are free, never sent partially.
+
 ## DroneCAN scope
-Implemented: NodeStatus (341), StaticPressure (1028), StaticTemperature (1029), IndicatedAirspeed (1021) as single-frame broadcasts.
-Not implemented (use libcanard + dronecan_dsdlc for these): reception, services (GetNodeInfo, parameters, firmware update), dynamic
-node-ID allocation, multi-frame messages such as RawAirData. Consequence: the node is visible and streams data, but cannot be configured
+Implemented: NodeStatus (341), StaticPressure (1028), StaticTemperature (1029), IndicatedAirspeed (1021) as single-frame broadcasts, and
+RawAirData (1027) as a 3-frame transfer (CRC over signature + payload, toggle bit). Not implemented (use libcanard + dronecan_dsdlc for these):
+reception, services (GetNodeInfo, parameters, firmware update), dynamic node-ID allocation. Consequence: the node is visible and streams data, but cannot be configured
 over the bus and may not be listed with a name/version in tools that require GetNodeInfo.

@@ -1,5 +1,6 @@
 /* adb_platform.c - see adb_platform.h */
 #include "adb_platform.h"
+#include "can_supervisor.h"
 #include <string.h>
 
 /* ---- time ---- */
@@ -94,4 +95,31 @@ bool adb_can_tx(void *ctx, const dc_frame_t *f)
     h.MessageMarker = 0u;
     /* FIFO mode keeps frames of the same ID in order (spec 4.1: identical IDs must be sent in queue order). */
     return HAL_FDCAN_AddMessageToTxFifoQ(&ADB_CAN_HANDLE, &h, (uint8_t *)(uintptr_t)f->data) == HAL_OK;
+}
+
+/* ---- CAN supervision (bus-off recovery, stuck TX flush) ---- */
+static cansup_t g_cansup;
+static bool     g_cansup_ready;
+static uint32_t g_can_restarts;
+
+uint32_t adb_can_tx_free(void *ctx)
+{
+    (void)ctx;
+    return HAL_FDCAN_GetTxFifoFreeLevel(&ADB_CAN_HANDLE);
+}
+uint32_t adb_can_restart_count(void) { return g_can_restarts; }
+
+void adb_can_service(uint32_t now_us)
+{
+    if (!g_cansup_ready) { cansup_init(&g_cansup, NULL); g_cansup_ready = true; }
+    FDCAN_ProtocolStatusTypeDef ps;
+    bool bus_off = false;
+    if (HAL_FDCAN_GetProtocolStatus(&ADB_CAN_HANDLE, &ps) == HAL_OK) bus_off = (ps.BusOff != 0u);
+    if (cansup_step(&g_cansup, now_us, bus_off, HAL_FDCAN_GetTxFifoFreeLevel(&ADB_CAN_HANDLE)) == CANSUP_RESTART) {
+        /* Stop() puts the controller in INIT mode (also flushes what is queued), Start() re-integrates into the bus
+         * (waits for 11 consecutive recessive bits, i.e. the standard bus-off recovery sequence). */
+        (void)HAL_FDCAN_Stop(&ADB_CAN_HANDLE);
+        (void)HAL_FDCAN_Start(&ADB_CAN_HANDLE);
+        g_can_restarts++;
+    }
 }

@@ -13,22 +13,24 @@ Drivers/Common        adb_status.h, adb_bus.h        error codes, mockable SPI/I
 Drivers/MS5611        ms5611.[ch]
 Drivers/BMP581        bmp581.[ch]
 Drivers/RSC           rsc.[ch]
-Drivers/CAN           dronecan.[ch]                  single-frame DroneCAN encoders (not libcanard)
+Drivers/CAN           dronecan.[ch]                  DroneCAN encoders: NodeStatus, StaticPressure, StaticTemperature, IAS, RawAirData (not libcanard)
+Drivers/CAN           can_supervisor.[ch]            bus-off recovery / stuck-TX policy
 Services/AirData      airdata.[ch]                   IAS / CAS / TAS / pressure altitude
 Services/Filters      filters.[ch]
 Services/SensorManager sensor_manager.[ch]
 Application           app.[ch]                       scheduler, publishing, diagnostics events
 Platform/stm32h7      board_config.h adb_platform.[ch] app_main.c   HAL glue (fill in board_config.h)
 Platform/stub         host-only HAL stub for syntax checking
-Tests                 8 host test suites + Makefile
+Tests                 9 host test suites + Makefile
 scripts               check.sh (quality gate), mutation_check.sh
-docs                  ARCHITECTURE
+docs                  ARCHITECTURE, datasheet_verification, assumptions_open_questions, TEST_PLAN, hardware_checklist,
+                      CODING_STANDARD, REVIEW_QA, REVIEW_RESPONSE   (8 files - `git ls-files docs` must list all of them)
 ```
 
 ## Quality gate (host: gcc + make)
 ```
 ./scripts/check.sh            # gcc -fanalyzer + strict warnings (-Werror) on every module, then all tests under ASan+UBSan
-./scripts/mutation_check.sh   # injects 19 bugs, requires the tests to catch each one
+./scripts/mutation_check.sh   # injects 26 bugs, requires the tests to catch each one
 ```
 
 ## Integrating on the STM32H755 (CM7)

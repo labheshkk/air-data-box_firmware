@@ -1,0 +1,21 @@
+# host test binaries and build output
+Tests/test_ms5611
+Tests/test_bmp581
+Tests/test_airdata
+Tests/test_rsc
+Tests/test_filters
+Tests/test_sensor_manager
+Tests/test_dronecan
+Tests/test_can_supervisor
+Tests/test_app
+*.o
+*.orig
+build/
+
+# manufacturer datasheets are copyrighted: keep them out of the repository
+*.pdf
+
+# editor / OS files
+.vscode/
+.idea/
+.DS_Store

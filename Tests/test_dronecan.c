@@ -20,6 +20,8 @@ static void test_f16_vectors(void)
     for (uint32_t h = 0; h < 0x7C00; h += 7) CHECK_EQ_I(dc_f32_to_f16(dc_f16_to_f32((uint16_t)h)), h);   /* exact round-trip */
 }
 
+static int f32_check(const uint8_t *d) { uint32_t u = (uint32_t)d[0] | ((uint32_t)d[1] << 8) | ((uint32_t)d[2] << 16) | ((uint32_t)d[3] << 24); float f; memcpy(&f, &u, 4); return (int)f; }
+
 /* spec-based header decoder */
 typedef struct { unsigned prio, dtid, svc, node, tail_sot, tail_eot, tail_toggle, tid; } hdr_t;
 static hdr_t dec(const dc_frame_t *f)
@@ -79,6 +81,37 @@ static void test_transfer_id_per_type_and_wrap(void)
     dc_encode_indicated_airspeed(&n, 10.0f, 1.0f, &f);  CHECK_EQ_I(dec(&f).tid, 0);
     dc_encode_static_temperature(&n, 288.0f, 1.0f, &f); CHECK_EQ_I(dec(&f).tid, 1);
 }
+static void test_raw_air_data_multiframe(void)
+{
+    /* Reference frames produced by an independent Python model of spec 4.1 (signature 0xC77DF38BA122F5DA,
+     * CRC-16-CCITT-FALSE over signature(LE)+payload, CRC prepended LE, toggle alternating from 0). */
+    dc_node_t n; dc_frame_t f[3]; dc_init(&n, 42);
+    CHECK_EQ_I(dc_encode_raw_air_data(&n, 0, 90000.0f, 600.0f, 298.15f, 298.15f, 298.15f, NAN, f), ADB_OK);
+    static const uint8_t a0[8] = { 0x7A, 0x3C, 0x00, 0x00, 0xC8, 0xAF, 0x47, 0x80 };
+    static const uint8_t a1[8] = { 0x00, 0x00, 0x16, 0x44, 0xA9, 0x5C, 0xA9, 0x20 };
+    static const uint8_t a2[6] = { 0x5C, 0xA9, 0x5C, 0x00, 0x7E, 0x40 };
+    CHECK_EQ_I(f[0].id, 0x1004032A); CHECK_EQ_I(f[1].id, 0x1004032A); CHECK_EQ_I(f[2].id, 0x1004032A);   /* 1027 = 0x403 */
+    CHECK_EQ_I(f[0].len, 8); CHECK_EQ_I(f[1].len, 8); CHECK_EQ_I(f[2].len, 6);                           /* all but the last frame full */
+    CHECK(memcmp(f[0].data, a0, 8) == 0); CHECK(memcmp(f[1].data, a1, 8) == 0); CHECK(memcmp(f[2].data, a2, 6) == 0);
+    CHECK_EQ_I(dc_encode_raw_air_data(&n, 0, 101325.0f, -12.5f, 288.15f, 290.0f, 288.15f, NAN, f), ADB_OK);
+    static const uint8_t b0[8] = { 0x79, 0x43, 0x00, 0x80, 0xE6, 0xC5, 0x47, 0x81 };      /* transfer ID 1 */
+    static const uint8_t b1[8] = { 0x00, 0x00, 0x48, 0xC1, 0x81, 0x5C, 0x88, 0x21 };
+    static const uint8_t b2[6] = { 0x5C, 0x81, 0x5C, 0x00, 0x7E, 0x41 };
+    CHECK(memcmp(f[0].data, b0, 8) == 0); CHECK(memcmp(f[1].data, b1, 8) == 0); CHECK(memcmp(f[2].data, b2, 6) == 0);
+    /* reassembly with an independent CRC check, as a receiver would do */
+    uint8_t buf[24]; unsigned len = 0;
+    for (int i = 0; i < 3; i++) { memcpy(buf + len, f[i].data, f[i].len - 1u); len += f[i].len - 1u; }
+    CHECK_EQ_I(len, 19);
+    uint8_t chk[8 + 17]; for (int i = 0; i < 8; i++) chk[i] = (uint8_t)(0xC77DF38BA122F5DAull >> (8 * i));
+    memcpy(chk + 8, buf + 2, 17);
+    uint16_t crc = 0xFFFF;
+    for (unsigned i = 0; i < sizeof chk; i++) { crc ^= (uint16_t)(chk[i] << 8); for (int b = 0; b < 8; b++) crc = (uint16_t)((crc & 0x8000) ? (crc << 1) ^ 0x1021 : (crc << 1)); }
+    CHECK_EQ_I(crc, buf[0] | (buf[1] << 8));
+    CHECK_EQ_I(f32_check(buf + 3), 101325);                                       /* static pressure decodes back */
+    CHECK_EQ_I(dc_encode_raw_air_data(&n, 0, NAN, 1.0f, 0, 0, 0, 0, f), ADB_ERR_PARAM);   /* pressures must be finite */
+    for (int i = 0; i < 40; i++) dc_encode_raw_air_data(&n, 0, 1.0f, 1.0f, 0, 0, 0, 0, f);
+    CHECK_EQ_I(dec(&f[0]).tid, 9); CHECK_EQ_I(dec(&f[2]).tid, 9);               /* transfers 0,1 + 40 more: last used id = 41 mod 32 = 9; all 3 frames share it */
+}
 static void test_node_id_validation(void)
 {
     dc_node_t n;
@@ -88,6 +121,6 @@ static void test_node_id_validation(void)
 int main(void)
 {
     RUN(test_f16_vectors); RUN(test_node_status); RUN(test_static_pressure); RUN(test_temperature_and_ias);
-    RUN(test_transfer_id_per_type_and_wrap); RUN(test_node_id_validation);
+    RUN(test_transfer_id_per_type_and_wrap); RUN(test_raw_air_data_multiframe); RUN(test_node_id_validation);
     TEST_SUMMARY(); return g_tests_failed ? 1 : 0;
 }

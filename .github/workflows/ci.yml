@@ -7,4 +7,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Static analysis + host unit tests
-        run: ./scripts/check.sh
+        run: bash scripts/check.sh

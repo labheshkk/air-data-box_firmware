@@ -17,6 +17,8 @@ app_cfg_t app_default_cfg(void)
     c.air = airdata_default_cfg(); c.sm = sm_default_cfg();
     c.autozero_on_boot = true; c.autozero_window_us = 10000000u;
     c.output_period_us = 20000u; c.temp_period_us = 100000u; c.status_period_us = 1000000u; c.reinit_period_us = 1000000u;
+    c.raw_period_us = 50000u;                                /* RawAirData 20 Hz (rate used by existing DroneCAN airspeed nodes) */
+    c.pub_raw_air_data = true; c.pub_ias = true;             /* both until the autopilot's requirement is confirmed */
     c.dp_sigma_pa = 30.0f;
     return c;
 }
@@ -41,6 +43,10 @@ static adb_status_t init_sensor(app_t *a, int which)
         if (s == ADB_OK) {
             if (!a->rsc.crc_verified) ev(a, APP_EV_RSC_CRC_UNVERIFIED, 0);
             if (!a->rsc.catalog_match) ev(a, APP_EV_RSC_PART_MISMATCH, 0);
+            int32_t pr, tr;                                  /* reboot in flight: reuse the last good zero instead of re-zeroing */
+            if (a->hw.zero_load && a->hw.zero_load(a->hw.zero_ctx, &pr, &tr) && pr > -8388608 && pr < 8388607 && tr > -1500 && tr < 2700) {
+                rsc_set_zero(&a->rsc, pr, tr); a->zero_restored = true; ev(a, APP_EV_ZERO_RESTORED, pr);
+            }
         }
     }
     a->diag.last_status[which] = s;
@@ -60,11 +66,13 @@ adb_status_t app_init(app_t *a, const app_cfg_t *cfg, const app_hw_t *hw, uint32
     if (s != ADB_OK) return s;
     if (cfg->output_period_us == 0u || cfg->temp_period_us == 0u || cfg->status_period_us == 0u || cfg->reinit_period_us == 0u)
         return ADB_ERR_PARAM;
-    a->t_boot = now_us; a->t_out = now_us + cfg->output_period_us; a->t_temp = now_us + cfg->temp_period_us;
+    a->t_boot = now_us; a->last_step_us = now_us; a->t_raw = now_us + cfg->raw_period_us;
+    a->t_out = now_us + cfg->output_period_us; a->t_temp = now_us + cfg->temp_period_us;
     a->t_status = now_us;                                    /* announce ourselves immediately */
     ev(a, APP_EV_BOOT, 0);
     for (int i = 0; i < 3; i++) { (void)init_sensor(a, i); a->t_reinit[i] = now_us + cfg->reinit_period_us; }
-    a->zero_pending = cfg->autozero_on_boot;                 /* partial availability is fine: each sensor is independent */
+    a->zero_pending = cfg->autozero_on_boot && hw->cold_boot;   /* partial availability is fine: each sensor is independent */
+    if (cfg->autozero_on_boot && !hw->cold_boot) ev(a, APP_EV_ZERO_SKIPPED_WARM, 0);   /* warm reboot may be in flight: never auto-zero */
     return ADB_OK;                                           /* never fails just because a sensor is missing */
 }
 
@@ -117,7 +125,10 @@ static void run_zero(app_t *a, uint32_t now)
         }
     } else if (zs == SM_ZERO_DONE) {
         int32_t pr, tr;
-        if (sm_zero_result(&a->sm, &pr, &tr) == ADB_OK) { rsc_set_zero(&a->rsc, pr, tr); ev(a, APP_EV_ZERO_OK, pr); }
+        if (sm_zero_result(&a->sm, &pr, &tr) == ADB_OK) {
+            rsc_set_zero(&a->rsc, pr, tr); ev(a, APP_EV_ZERO_OK, pr);
+            if (a->hw.zero_store) a->hw.zero_store(a->hw.zero_ctx, pr, tr);           /* survive the next (possibly in-flight) reboot */
+        }
         sm_zero_applied(&a->sm); a->zero_pending = false; a->zero_forced = false; a->zero_started_us = 0u;
     } else if ((zs == SM_ZERO_FAIL_SPREAD || zs == SM_ZERO_FAIL_OFFSET) && !a->zero_fail_reported) {
         a->zero_fail_reported = true;                         /* report once; the failure stays latched in the manager flags */
@@ -125,6 +136,21 @@ static void run_zero(app_t *a, uint32_t now)
         if (a->zero_pending && !a->zero_forced && in_boot_window) zero_begin(a, now);       /* boot: retry inside the window */
         else { a->zero_pending = false; a->zero_forced = false; a->zero_started_us = 0u; }   /* explicit request: single attempt */
     }
+}
+
+/* uavcan.equipment.air_data.RawAirData: static + differential pressure (zero-corrected, filtered) and temperatures.
+ * 3 frames; sent only if all three fit in the TX FIFO so a transfer is never split. Unused temperature = NaN (spec). */
+static void raw_task(app_t *a)
+{
+    const sm_output_t *o = &a->out;
+    if (!a->cfg.pub_raw_air_data || !o->static_valid || !o->dp_valid) return;
+    if (a->hw.can_tx_free && a->hw.can_tx_free(a->hw.can_ctx) < DC_RAW_AIR_DATA_FRAMES) { a->diag.raw_skipped++; return; }
+    const float nan = (float)NAN;
+    float t_static = o->temp_valid ? o->temp_c + 273.15f : nan;
+    float t_diff = (a->ok[S_RSC] && a->rsc.have_sample) ? (float)a->rsc.last.temp_c + 273.15f : nan;
+    dc_frame_t fr[DC_RAW_AIR_DATA_FRAMES];
+    if (dc_encode_raw_air_data(&a->node, 0u, o->static_pa, o->dp_pa, t_static, t_diff, t_static, nan, fr) != ADB_OK) return;
+    for (unsigned i = 0; i < DC_RAW_AIR_DATA_FRAMES; i++) send(a, &fr[i]);
 }
 
 static void output_task(app_t *a, uint32_t now)
@@ -149,7 +175,7 @@ static void output_task(app_t *a, uint32_t now)
             float v = (a->ias_ms > 5.0f) ? a->ias_ms : 5.0f;                       /* dV = dq/(rho*V); floor V to bound the variance */
             float sd = a->cfg.dp_sigma_pa / (a->cfg.air.rho0_kg_m3 * v);
             a->ias_var = sd * sd;
-            if (dc_encode_indicated_airspeed(&a->node, a->ias_ms, a->ias_var, &f) == ADB_OK) send(a, &f);
+            if (a->cfg.pub_ias && dc_encode_indicated_airspeed(&a->node, a->ias_ms, a->ias_var, &f) == ADB_OK) send(a, &f);
         } else a->diag.ias_rejected++;                                              /* faulty value is withheld, not published */
     }
 }
@@ -157,6 +183,7 @@ static void output_task(app_t *a, uint32_t now)
 void app_step(app_t *a, uint32_t now)
 {
     if (!a) return;
+    a->uptime_us += (uint32_t)(now - a->last_step_us); a->last_step_us = now;      /* wrap-safe delta into a 64-bit total */
     for (int i = 0; i < 3; i++)                                                     /* retry sensors that failed to start */
         if (!a->ok[i] && due(now, a->t_reinit[i])) { (void)init_sensor(a, i); a->t_reinit[i] = now + a->cfg.reinit_period_us; }
     poll_sensors(a, now);
@@ -166,6 +193,10 @@ void app_step(app_t *a, uint32_t now)
         do { a->t_out += a->cfg.output_period_us; } while (due(now, a->t_out));     /* catch up without bursts */
     }
     dc_frame_t f;
+    if (due(now, a->t_raw)) {
+        raw_task(a);
+        do { a->t_raw += a->cfg.raw_period_us; } while (due(now, a->t_raw));
+    }
     if (due(now, a->t_temp)) {
         if (a->out.temp_valid && dc_encode_static_temperature(&a->node, a->out.temp_c + 273.15f, 1.0f, &f) == ADB_OK) send(a, &f);
         do { a->t_temp += a->cfg.temp_period_us; } while (due(now, a->t_temp));
@@ -175,7 +206,7 @@ void app_step(app_t *a, uint32_t now)
                          : (a->out.flags & SM_F_ZEROING) ? DC_MODE_MAINTENANCE : DC_MODE_OPERATIONAL;
         uint8_t health = sm_node_health(&a->out);
         if (!a->seen_valid) health = 0u;                                            /* still starting: don't alarm */
-        if (dc_encode_node_status(&a->node, (now - a->t_boot) / 1000000u, health, mode,
+        if (dc_encode_node_status(&a->node, (uint32_t)(a->uptime_us / 1000000u), health, mode,
                                   (uint16_t)(a->out.flags & 0xFFFFu), &f) == ADB_OK) send(a, &f);
         do { a->t_status += a->cfg.status_period_us; } while (due(now, a->t_status));
     }

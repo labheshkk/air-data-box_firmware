@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 INC="-IDrivers/Common -IDrivers/MS5611 -IDrivers/BMP581 -IDrivers/RSC -IDrivers/CAN -IServices/AirData -IServices/Filters -IServices/SensorManager -IApplication"
 WARN="-Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wcast-qual -Wundef -Wdouble-promotion \
       -Wformat=2 -Wstrict-prototypes -Wmissing-prototypes -Wswitch-enum -Werror"
-for f in Drivers/MS5611/ms5611.c Drivers/BMP581/bmp581.c Drivers/RSC/rsc.c Drivers/CAN/dronecan.c \
+for f in Drivers/MS5611/ms5611.c Drivers/BMP581/bmp581.c Drivers/RSC/rsc.c Drivers/CAN/dronecan.c Drivers/CAN/can_supervisor.c \
          Services/AirData/airdata.c Services/Filters/filters.c Services/SensorManager/sensor_manager.c Application/app.c; do
     echo "[analyze] $f"
     gcc -std=c11 -fsyntax-only -fanalyzer $WARN $INC "$f"

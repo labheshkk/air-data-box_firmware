@@ -12,7 +12,7 @@ sm_cfg_t sm_default_cfg(void)
         .sigma_a_pa = 0.41f, .sigma_b_pa = 1.2f,
         .static_spike_pa = 200.0f, .spike_confirm = 3u, .stuck_samples = 100u,
         .static_lpf_hz = 10.0f, .dp_lpf_hz = 10.0f, .dp_spike_pa = 1500.0f, .dp_neg_tol_pa = 10.0f,
-        .zero_samples = 100u, .zero_max_abs_pa = 150.0f, .zero_max_std_pa = 3.0f
+        .zero_samples = 100u, .zero_max_abs_pa = 100.0f, .zero_max_std_pa = 3.0f   /* TEB +/-90 Pa uncorrected + margin: a larger apparent offset is more likely real airflow */
     };
     return c;
 }

@@ -57,7 +57,7 @@ typedef struct {
     float    dp_spike_pa;
     float    dp_neg_tol_pa;             /* below -tol the dp is flagged negative                       */
     uint16_t zero_samples;              /* samples averaged for zeroing                                */
-    float    zero_max_abs_pa;           /* reject zero if |mean| larger (RSC TEB 0.75 %FSS = 90 Pa)    */
+    float    zero_max_abs_pa;           /* reject zero if |mean| larger (RSC TEB 0.75 %FSS = 90 Pa; default 100 Pa) */
     float    zero_max_std_pa;           /* reject zero if noisy/moving air                             */
 } sm_cfg_t;
 

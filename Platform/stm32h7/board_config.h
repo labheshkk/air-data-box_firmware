@@ -42,4 +42,15 @@ extern FDCAN_HandleTypeDef hfdcan1;          /* UNCONFIRMED: which FDCAN instanc
 
 #define ADB_SPI_TIMEOUT_MS 5u
 
+/* FDCAN TX FIFO depth: MUST equal the "Tx FIFO Queue Elements" value configured in CubeMX (>= 3 so a 3-frame
+ * RawAirData transfer fits). UNCONFIRMED placeholder. */
+#define ADB_CAN_TX_FIFO_DEPTH 8u
+
+/* Cold-boot detection for the auto-zero safeguard (see app.h, hw.cold_boot): true ONLY after a power-on / brown-out
+ * reset, false after watchdog, software or pin reset (those can happen in flight). The RCC reset-flag names below are
+ * from memory of the H7 HAL and are UNCONFIRMED against the real stm32h7xx_hal_rcc.h; the flags must be cleared after
+ * reading (done in adb_app_init). If unsure, define it as 0: the box then never auto-zeroes (safe, but offset stays
+ * uncorrected until a maintenance zero request). */
+#define ADB_BOOT_IS_COLD()  (__HAL_RCC_GET_FLAG(RCC_FLAG_PORRST) != 0U)
+
 #endif
