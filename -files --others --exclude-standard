@@ -1,0 +1,69 @@
+warning: in the working copy of '.clang-format', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.github/workflows/ci.yml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Application/app.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Application/app.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'CHANGELOG.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Drivers/BMP581/bmp581.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Drivers/BMP581/bmp581.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Drivers/CAN/can_supervisor.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Drivers/CAN/can_supervisor.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Drivers/CAN/dronecan.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Drivers/CAN/dronecan.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Drivers/Common/adb_bus.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Drivers/Common/adb_status.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Drivers/MS5611/ms5611.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Drivers/MS5611/ms5611.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Drivers/RSC/rsc.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Drivers/RSC/rsc.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Platform/stm32h7/adb_platform.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Platform/stm32h7/adb_platform.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Platform/stm32h7/app_main.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Platform/stm32h7/board_config.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Platform/stub/stm32h7xx_hal.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Services/AirData/airdata.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Services/AirData/airdata.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Services/Filters/filters.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Services/Filters/filters.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Services/SensorManager/sensor_manager.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Services/SensorManager/sensor_manager.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Tests/Makefile', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Tests/test_airdata.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Tests/test_app.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Tests/test_bmp581.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Tests/test_can_supervisor.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Tests/test_common.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Tests/test_dronecan.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Tests/test_filters.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Tests/test_ms5611.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Tests/test_rsc.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'Tests/test_sensor_manager.c', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/ARCHITECTURE.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/CODING_STANDARD.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/REVIEW_QA.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/REVIEW_RESPONSE.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/TEST_PLAN.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/assumptions_open_questions.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/datasheet_verification.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/hardware_checklist.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/check.sh', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/mutation_check.sh', LF will be replaced by CRLF the next time Git touches it
+ .gitignore                         |  1 [32m+[m
+ CHANGELOG.md                       | 17 [32m++++++++[m
+ Drivers/Common/adb_bus.h           |  3 [32m+[m[31m-[m
+ Platform/stm32h7/adb_platform.c    | 85 [32m++++++++++++++++++++++++++++++++++++++[m
+ Platform/stm32h7/adb_platform.h    | 19 [32m+++++++++[m
+ Platform/stm32h7/app_main.c        | 24 [32m+++++++[m[31m----[m
+ Platform/stm32h7/board_config.h    | 50 [32m++++++++++++++++[m[31m------[m
+ Platform/stub/stm32h7xx_hal.h      | 20 [32m++++++++[m[31m-[m
+ README.md                          |  9 [32m++[m[31m--[m
+ Tests/Makefile                     |  7 [32m++[m[31m--[m
+ docs/ARCHITECTURE.md               |  4 [32m+[m[31m-[m
+ docs/TEST_PLAN.md                  | 10 [32m++++[m[31m-[m
+ docs/assumptions_open_questions.md |  4 [32m+[m[31m-[m
+ docs/datasheet_verification.md     |  2 [32m+[m
+ docs/hardware_checklist.md         |  9 [32m+++[m[31m-[m
+ scripts/check.sh                   |  7 [32m++++[m
+ scripts/mutation_check.sh          | 10 [32m+++++[m
+ 17 files changed, 244 insertions(+), 37 deletions(-)

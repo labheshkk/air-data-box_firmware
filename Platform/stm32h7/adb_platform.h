@@ -17,12 +17,31 @@ typedef struct {                     /* one SPI device = bus handle + chip selec
     uint32_t           cpol, cpha;   /* SPI_POLARITY_x / SPI_PHASE_x */
 } adb_spi_dev_t;
 
+typedef struct {                     /* one I2C device = bus handle + 7-bit address (MS5611: 0x77, CSB low) */
+    I2C_HandleTypeDef *hi2c;
+    uint16_t           addr7;
+    bool               have_recovered;
+    uint32_t           t_last_recover_us;
+} adb_i2c_dev_t;
+
 /* Fill an adb_bus_t that talks to `dev`. `dev` must outlive the bus. */
 void     adb_platform_spi_bus(adb_bus_t *bus, adb_spi_dev_t *dev);
+void     adb_platform_i2c_bus(adb_bus_t *bus, adb_i2c_dev_t *dev);
+
+/* Free a hung I2C bus: MS5611 datasheet p.12 says a failed power-on reset can leave the sensor holding SDA low
+ * (acknowledge state); the remedy is several SCLK pulses, then a reset. Pulses SCL up to 9 times until SDA is
+ * released, sends a STOP, and re-initialises the I2C peripheral. Called automatically (at most every 100 ms)
+ * when a transfer fails. */
+void     adb_i2c_recover(adb_i2c_dev_t *dev);
 
 /* 1 MHz time base from a free-running 32-bit timer (wraps every 71.6 min; all consumers use wrap-safe subtraction). */
 uint32_t adb_time_us(void);
 void     adb_delay_us(uint32_t us);
+
+/* Self-check of the 1 MHz time base: measures the timer against SysTick (HAL_GetTick) over 10 ms and accepts +/-10 %.
+ * Catches a wrong TIM2 prescaler (e.g. after the clock tree changed) - every sensor wait and timeout depends on this clock.
+ * Bounded: a stopped SysTick returns false instead of hanging. Does not detect small drift. */
+bool     adb_time_base_ok(void);
 
 /* Classic-CAN, 29-bit ID transmit. Returns false if the TX FIFO is full or the HAL reports an error. */
 bool     adb_can_tx(void *ctx, const dc_frame_t *f);

@@ -7,7 +7,8 @@
  *  write_read() : send `txlen` bytes, then read `rxlen` bytes.
  *                 SPI: ONE chip-select frame (clock txlen+rxlen bytes, discard
  *                      the first txlen received bytes).
- *                 I2C: write phase followed by (repeated-start) read phase.
+ *                 I2C: write phase, then STOP, then a separate read phase (MS5611 datasheet p.12-13: the command
+ *                      and the data read are two transactions).
  *  read()       : (optional, may be NULL) pure read of `len` bytes in one transaction.
  *                 SPI: clocks `len` bytes while sending 0x00 filler. Needed by devices whose
  *                 data starts at the first clock (Honeywell RSC ADC).

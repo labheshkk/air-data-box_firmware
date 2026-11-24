@@ -19,18 +19,19 @@ Services/AirData      airdata.[ch]                   IAS / CAS / TAS / pressure 
 Services/Filters      filters.[ch]
 Services/SensorManager sensor_manager.[ch]
 Application           app.[ch]                       scheduler, publishing, diagnostics events
-Platform/stm32h7      board_config.h adb_platform.[ch] app_main.c   HAL glue (fill in board_config.h)
+Platform/stm32h7      board_config.h adb_platform.[ch] app_main.c   HAL glue: SPI4 (BMP581), SPI2 (RSC), I2C4 (MS5611), FDCAN
 Platform/stub         host-only HAL stub for syntax checking
-Tests                 9 host test suites + Makefile
+CubeIDE               air_data_box.ioc (CubeMX project definition), make_ioc.py, README
+Tests                 10 host test suites + Makefile
 scripts               check.sh (quality gate), mutation_check.sh
 docs                  ARCHITECTURE, datasheet_verification, assumptions_open_questions, TEST_PLAN, hardware_checklist,
-                      CODING_STANDARD, REVIEW_QA, REVIEW_RESPONSE   (8 files - `git ls-files docs` must list all of them)
+                      CODING_STANDARD, REVIEW_QA, REVIEW_RESPONSE, BOARD_INTEGRATION, BENCH_TEST_PROCEDURE, CUBEIDE_SETUP   (11 files - `git ls-files docs` must list all of them)
 ```
 
 ## Quality gate (host: gcc + make)
 ```
 ./scripts/check.sh            # gcc -fanalyzer + strict warnings (-Werror) on every module, then all tests under ASan+UBSan
-./scripts/mutation_check.sh   # injects 26 bugs, requires the tests to catch each one
+./scripts/mutation_check.sh   # injects 34 bugs, requires the tests to catch each one
 ```
 
 ## Integrating on the STM32H755 (CM7)

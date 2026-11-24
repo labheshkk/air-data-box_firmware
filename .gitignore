@@ -7,6 +7,7 @@ Tests/test_filters
 Tests/test_sensor_manager
 Tests/test_dronecan
 Tests/test_can_supervisor
+Tests/test_platform
 Tests/test_app
 *.o
 *.orig

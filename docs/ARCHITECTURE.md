@@ -11,7 +11,7 @@
                 \              |               /                  Services/AirData (IAS,CAS,TAS,altitude)
                  +----- Drivers/Common/adb_bus.h (HAL boundary, mockable) -----+                |
                                           |                                                      |
-                              Platform/stm32h7  (SPI + CS GPIO, 1 MHz timer, FDCAN)  <-----------+
+                              Platform/stm32h7  (SPI4 + SPI2 + I2C4, CS GPIO, 1 MHz timer, FDCAN)  <-----------+
 ```
 Rule: everything above `adb_bus.h` is portable C11 with no STM32 includes and is exercised on a PC.
 
@@ -26,7 +26,7 @@ Rule: everything above `adb_bus.h` is portable C11 with no STM32 includes and is
 | `Services/SensorManager` | per-channel health, staleness, dual static fusion, zeroing statistics, node health | see "Static-pressure strategy" |
 | `Drivers/CAN` | single-frame DroneCAN encoders, float16 | spec-verified IDs/layout; not a full stack (see below) |
 | `Application` | scheduling, diagnostics events, publish rules | invalid data is withheld, never published |
-| `Platform/stm32h7` | HAL glue | all board specifics isolated in `board_config.h` |
+| `Platform/stm32h7` | HAL glue: SPI (BMP581 on SPI4, RSC on SPI2), I2C (MS5611 on I2C4, with stuck-bus recovery), FDCAN | all board specifics isolated in `board_config.h` (wiring: `BOARD_INTEGRATION.md`) |
 
 ## Periodic tasks (`app_step`, called from the main loop at >= 1 kHz)
 | Task | Period | Work | Failure behaviour |

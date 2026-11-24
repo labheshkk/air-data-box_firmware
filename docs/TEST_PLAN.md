@@ -3,7 +3,7 @@
 Legend: **[EXECUTED]** = run in the authoring sandbox (host, no hardware). **[PROPOSED]** = to be run on hardware; no result exists.
 
 ## A. Executed (host)
-`./scripts/check.sh` -> gcc `-fanalyzer` + strict warnings on all modules, then 9 suites under AddressSanitizer + UBSan (8,800+ assertions):
+`./scripts/check.sh` -> gcc `-fanalyzer` + strict warnings on all modules, then 10 suites under AddressSanitizer + UBSan (8,900+ assertions):
 
 | Suite | Assertions | Covers |
 |---|---|---|
@@ -15,12 +15,15 @@ Legend: **[EXECUTED]** = run in the authoring sandbox (host, no hardware). **[PR
 | test_sensor_manager | 172 | fusion, failure/recovery, stale, arbitration by continuity, unresolved, stuck, zeroing outcomes, node health |
 | test_dronecan | 4665 | float16 vectors + exhaustive round-trip, CAN ID/tail byte/payload vectors, transfer-ID wrap |
 | test_can_supervisor | 29 | bus-off back-off doubling/cap/reset, recovery without restart, stuck-TX flush |
+| test_platform | 115 | fake-HAL tests: SPI chip-select framing, RSC mode switching, I2C address/STOP structure, stuck-SDA recovery, CAN header, bus-off/stuck-TX restart |
 | test_app | 3679 | end-to-end with simulated sensors: autozero, 50/10/1 Hz rates, sensor failure + recovery, disagreement, missing sensor at boot, wind during zero, TX overrun |
 
-`./scripts/mutation_check.sh`: 26 deliberately injected bugs (sign errors, wrong coefficients, removed checks, and each preliminary-review finding) -> **26 killed, 0 survived**.
+`./scripts/mutation_check.sh`: 36 deliberately injected bugs (sign errors, wrong coefficients, removed checks, each preliminary-review finding, and platform-layer faults) -> **36 killed, 0 survived**.
 Two real defects were found by these tests during development (zero-retry timeout; event flood) and fixed.
 
 ## B. Proposed hardware acceptance tests (in order; stop at the first failure)
+A short, step-by-step version for the **first power-up** with the DroneCAN GUI Tool is in `BENCH_TEST_PROCEDURE.md`.
+
 | # | Test | Method | Pass criterion |
 |---|---|---|---|
 | 1 | Power + levels | 3.3 V rail, CS idle high, MISO not floating | rails within datasheet range |
@@ -38,4 +41,7 @@ Two real defects were found by these tests during development (zero-retry timeou
 | 13 | BMP581 data-ready | log `INT_SOURCE` (0x15) and `INT_STATUS` on the bus | 0x15 = 0x01 after init; drdy toggles at 50 Hz |
 | 14 | RawAirData | DroneCAN GUI Tool / autopilot (confirm airspeed type and params) | decodes, ~20 Hz, CRC accepted, ArduPilot/PX4 airspeed valid |
 | 15 | Bus-off recovery | short CAN_H/CAN_L for a few seconds, then remove | node resumes within ~1-2 s without reset; `adb_can_restart_count()` > 0 |
+| 17 | MS5611 over I2C | logic analyser on I2C4 right after reset | ACK at 0x77 (write 0xEE), PROM words read, 100 kHz, no spurious STOP inside a command |
+| 18 | Stuck SDA | hold SDA low with a jumper during a reset command | recovery pulses appear on SCL (<= 9), sensor responds afterwards, no reset needed |
+| 19 | SPI pull-ups / signal quality | scope SCK and MISO on SPI2 and SPI4 (1 kOhm pull-ups on the board) | clean edges at the configured SCLK; RSC ADC mode 1 and EEPROM mode 0 verified separately |
 | 16 | Warm reboot | power cycle (cold) vs. watchdog reset (warm) with air on the probe | warm: no `ZERO_OK`; stored zero restored (needs flash persistence) |

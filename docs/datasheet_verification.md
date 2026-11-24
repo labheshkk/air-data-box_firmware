@@ -56,6 +56,7 @@ RSC driver: **written** (`Drivers/RSC`), with every UNCONFIRMED item above made 
 | SPI | modes 0 and 3, ≤ 20 MHz, CSB active low | p.5–6 | VERIFIED |
 | I2C address | `111011Cx`, C = complement of CSB (0x77 / 0x76 7-bit) | p.12 | VERIFIED (7-bit form DERIVED) |
 | Supply | 1.8–3.6 V; 100 nF at VDD | p.3, 17 | VERIFIED |
+| I2C usage as wired (PS high, CSB low -> 0x77); command write and data read are separate transactions with STOP; failed power-on reset can leave SDA held low (clock pulses + reset) | p.6, 12-13 | VERIFIED; wiring facts from the board document, cross-checked |
 | Commands | Reset `0x1E`; D1 `0x40/42/44/46/48`; D2 `0x50/52/54/56/58`; ADC read `0x00`; PROM `0xA0…0xAE` | p.10 | VERIFIED |
 | Reset | once after power-on; 2.8 ms reload | p.10 | VERIFIED |
 | PROM | 8 × 16-bit: [0] factory, [1..6] C1..C6, [7] serial+CRC4 (bits 3..0) | p.8, 12–13 | VERIFIED |
@@ -110,6 +111,7 @@ formulas". The BMP581 has none in the host path — that is a verified property 
 | RawAirData layout | flags u8, static_pressure f32, differential_pressure f32, 4 x f16 temperatures (static sensor, diff sensor, static air, pitot), f16[<=16] covariance (omitted); unused = NaN | VERIFIED (spec section 7) |
 | RawAirData signature | 0xC77DF38BA122F5DA (ID 1027) | VERIFIED from a public libcanard script output quoted by its maintainer; not recomputed from DSDL |
 | Multi-frame rules | CRC-16-CCITT-FALSE over signature (LE) + payload, CRC prepended, toggle alternates from 0, all frames full except the last, same ID/priority, abort after 1 s | VERIFIED (spec 4.1); CRC byte order little-endian per libcanard (UNCONFIRMED in text) |
+| ArduPilot Copter airspeed support | `ARSPD_TYPE` value 8 = DroneCAN appears in the Copter parameter list (4.3.6, 4.5.5) and the Matek DroneCAN airspeed page for Copter | VERIFIED (docs) |
 | Airspeed message the autopilot uses | RawAirData for ArduPilot-style airspeed nodes (public node docs); PX4 lists separate airspeed / differential-pressure subscriptions | **UNCONFIRMED for this vehicle** |
 
 ## 5. How the numbers in tests were produced

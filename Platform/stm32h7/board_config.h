@@ -23,27 +23,39 @@
 #  endif
 #endif
 
-extern SPI_HandleTypeDef   hspi1;            /* UNCONFIRMED: which SPI instance carries the sensors */
-extern TIM_HandleTypeDef   htim2;            /* UNCONFIRMED: 1 MHz free-running 32-bit timer         */
+extern SPI_HandleTypeDef   hspi4;            /* BMP581: PE12 SCK, PE13 MISO, PE14 MOSI */
+extern SPI_HandleTypeDef   hspi2;            /* RSC: PB13 SCK, PB14 MISO, PB15 MOSI */
+extern I2C_HandleTypeDef   hi2c4;            /* MS5611: PD12 SCL, PD13 SDA (I2C mode, PS tied to VDD) */
+extern TIM_HandleTypeDef   htim2;            /* 1 MHz free-running 32-bit timer */
 extern FDCAN_HandleTypeDef hfdcan1;          /* UNCONFIRMED: which FDCAN instance / transceiver       */
-#define ADB_SPI_HANDLE     hspi1
+#define ADB_SPI_HANDLE     hspi4             /* BMP581 */
+#define ADB_SPI_RSC_HANDLE hspi2             /* RSC */
+#define ADB_I2C_HANDLE     hi2c4             /* MS5611 */
 #define ADB_TIM_HANDLE     htim2
 #define ADB_CAN_HANDLE     hfdcan1
 
-/* Chip selects (GPIO port + pin) - UNCONFIRMED placeholders */
-#define CS_BMP581_PORT     GPIOA
-#define CS_BMP581_PIN      GPIO_PIN_4
-#define CS_MS5611_PORT     GPIOA
-#define CS_MS5611_PIN      GPIO_PIN_3
-#define CS_RSC_ADC_PORT    GPIOB
-#define CS_RSC_ADC_PIN     GPIO_PIN_0
-#define CS_RSC_EE_PORT     GPIOB
-#define CS_RSC_EE_PIN      GPIO_PIN_1
+/* Chip selects (GPIO port + pin), outputs, idle high */
+#define CS_BMP581_PORT     GPIOE             /* PE11 */
+#define CS_BMP581_PIN      GPIO_PIN_11
+#define CS_RSC_ADC_PORT    GPIOB             /* PB12 */
+#define CS_RSC_ADC_PIN     GPIO_PIN_12
+#define CS_RSC_EE_PORT     GPIOD             /* PD11 */
+#define CS_RSC_EE_PIN      GPIO_PIN_11
+/* no CS for the MS5611: it is on I2C4, address 0x77 (CSB tied low) */
+#define MS5611_I2C_ADDR    0x77u
+
+/* Optional inputs */
+#define BMP581_INT_PORT    GPIOD             /* PD15 */
+#define BMP581_INT_PIN     GPIO_PIN_15
+#define RSC_DRDY_PORT      GPIOD             /* PD8 */
+#define RSC_DRDY_PIN       GPIO_PIN_8
+#define VIN_SENSE_PORT     GPIOF             /* PF8, Vin = Vpin x 9.33 (10k / 1.2k) */
+#define VIN_SENSE_PIN      GPIO_PIN_8
 
 #define ADB_SPI_TIMEOUT_MS 5u
 
 /* FDCAN TX FIFO depth: MUST equal the "Tx FIFO Queue Elements" value configured in CubeMX (>= 3 so a 3-frame
- * RawAirData transfer fits). UNCONFIRMED placeholder. */
+ * RawAirData transfer fits). Set to 8 in CubeMX. */
 #define ADB_CAN_TX_FIFO_DEPTH 8u
 
 /* Cold-boot detection for the auto-zero safeguard (see app.h, hw.cold_boot): true ONLY after a power-on / brown-out
@@ -52,5 +64,17 @@ extern FDCAN_HandleTypeDef hfdcan1;          /* UNCONFIRMED: which FDCAN instanc
  * reading (done in adb_app_init). If unsure, define it as 0: the box then never auto-zeroes (safe, but offset stays
  * uncorrected until a maintenance zero request). */
 #define ADB_BOOT_IS_COLD()  (__HAL_RCC_GET_FLAG(RCC_FLAG_PORRST) != 0U)
+
+
+/* ======================================================================================================
+ * Firmware-side additions (NOT part of the Kepstronic file; kept in one block so their file can be dropped
+ * in again without losing them). Derived from "Air Data Box - sensor wiring and board configuration"
+ * (A. Jabbes, 13.11.2026): MS5611 on I2C4 (SCL PD12, SDA PD13), 10 kOhm pull-ups, 100 kHz.
+ * ====================================================================================================== */
+#define ADB_I2C_TIMEOUT_MS   5u              /* per HAL call; 100 kHz bus: a 4-byte transfer takes ~0.5 ms */
+#define ADB_I2C_SCL_PORT     GPIOD           /* PD12 - used only by the stuck-bus recovery (9 clock pulses) */
+#define ADB_I2C_SCL_PIN      GPIO_PIN_12
+#define ADB_I2C_SDA_PORT     GPIOD           /* PD13 */
+#define ADB_I2C_SDA_PIN      GPIO_PIN_13
 
 #endif

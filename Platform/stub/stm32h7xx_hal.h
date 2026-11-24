@@ -7,8 +7,13 @@
 typedef enum { HAL_OK = 0, HAL_ERROR = 1, HAL_BUSY = 2, HAL_TIMEOUT = 3 } HAL_StatusTypeDef;
 typedef enum { GPIO_PIN_RESET = 0, GPIO_PIN_SET } GPIO_PinState;
 typedef struct { int dummy; } GPIO_TypeDef;
-extern GPIO_TypeDef *GPIOA, *GPIOB;
+extern GPIO_TypeDef *GPIOA, *GPIOB, *GPIOD, *GPIOE, *GPIOF;
 #define GPIO_PIN_0 0x0001u
+#define GPIO_PIN_8  0x0100u
+#define GPIO_PIN_11 0x0800u
+#define GPIO_PIN_12 0x1000u
+#define GPIO_PIN_13 0x2000u
+#define GPIO_PIN_15 0x8000u
 #define GPIO_PIN_1 0x0002u
 #define GPIO_PIN_3 0x0008u
 #define GPIO_PIN_4 0x0010u
@@ -18,6 +23,18 @@ extern GPIO_TypeDef *GPIOA, *GPIOB;
 typedef struct { uint32_t CLKPolarity, CLKPhase; } SPI_InitTypeDef;
 typedef struct { SPI_InitTypeDef Init; } SPI_HandleTypeDef;
 typedef struct { int dummy; } TIM_HandleTypeDef;
+typedef struct { int dummy; } I2C_HandleTypeDef;
+typedef struct { uint32_t Pin, Mode, Pull, Speed, Alternate; } GPIO_InitTypeDef;
+#define GPIO_MODE_INPUT      0x00000000u
+#define GPIO_MODE_OUTPUT_OD  0x00000011u
+#define GPIO_PULLUP          0x00000001u
+#define GPIO_SPEED_FREQ_LOW  0x00000000u
+void HAL_GPIO_Init(GPIO_TypeDef *GPIOx, GPIO_InitTypeDef *GPIO_Init);
+GPIO_PinState HAL_GPIO_ReadPin(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
+HAL_StatusTypeDef HAL_I2C_Init(I2C_HandleTypeDef *hi2c);
+HAL_StatusTypeDef HAL_I2C_DeInit(I2C_HandleTypeDef *hi2c);
+HAL_StatusTypeDef HAL_I2C_Master_Transmit(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t *pData, uint16_t Size, uint32_t Timeout);
+HAL_StatusTypeDef HAL_I2C_Master_Receive(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint8_t *pData, uint16_t Size, uint32_t Timeout);
 typedef struct { int dummy; } FDCAN_HandleTypeDef;
 typedef struct {
     uint32_t Identifier, IdType, TxFrameType, DataLength, ErrorStateIndicator, BitRateSwitch, FDFormat, TxEventFifoControl, MessageMarker;
@@ -47,6 +64,7 @@ uint32_t stub_rcc_flag(uint32_t f);
 #define __HAL_RCC_GET_FLAG(f) stub_rcc_flag(f)
 void stub_rcc_clear(void);
 #define __HAL_RCC_CLEAR_RESET_FLAGS() stub_rcc_clear()
+uint32_t HAL_GetTick(void);
 uint32_t stub_tim_counter(TIM_HandleTypeDef *h);
 #define __HAL_TIM_GET_COUNTER(h) stub_tim_counter(h)
 HAL_StatusTypeDef HAL_SPI_Init(SPI_HandleTypeDef *hspi);

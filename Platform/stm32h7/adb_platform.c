@@ -11,6 +11,22 @@ void adb_delay_us(uint32_t us)
     while ((uint32_t)(adb_time_us() - t0) < us) { }          /* init/retry paths only */
 }
 
+#ifndef ADB_TIMEBASE_SPIN_LIMIT
+#define ADB_TIMEBASE_SPIN_LIMIT 50000000u    /* iterations, far more than 10 ms even at 480 MHz */
+#endif
+bool adb_time_base_ok(void)
+{
+    uint32_t guard = 0u;
+    uint32_t tick0 = HAL_GetTick();
+    while (HAL_GetTick() == tick0) { if (++guard > ADB_TIMEBASE_SPIN_LIMIT) return false; }      /* align to a SysTick edge */
+    tick0 = HAL_GetTick();
+    uint32_t us0 = adb_time_us();
+    guard = 0u;
+    while ((uint32_t)(HAL_GetTick() - tick0) < 10u) { if (++guard > ADB_TIMEBASE_SPIN_LIMIT) return false; }
+    uint32_t dus = (uint32_t)(adb_time_us() - us0);
+    return dus >= 9000u && dus <= 11000u;                                                          /* 10 ms +/- 10 % */
+}
+
 /* ---- SPI ---- */
 #define SPI_MAX_FRAME 480u           /* >= 2 + 452 (RSC EEPROM image) */
 
@@ -69,6 +85,75 @@ void adb_platform_spi_bus(adb_bus_t *bus, adb_spi_dev_t *dev)
 {
     bus->ctx = dev; bus->kind = ADB_BUS_SPI;
     bus->write = bus_write; bus->write_read = bus_write_read; bus->read = bus_read; bus->delay_us = bus_delay;
+}
+
+/* ---- I2C (MS5611) ---- */
+#define I2C_RECOVER_MIN_INTERVAL_US 100000u
+
+void adb_i2c_recover(adb_i2c_dev_t *d)
+{
+    if (!d) return;
+    (void)HAL_I2C_DeInit(d->hi2c);                           /* releases the pins (MspDeInit) */
+    GPIO_InitTypeDef g;
+    memset(&g, 0, sizeof g);
+    g.Pin = ADB_I2C_SCL_PIN; g.Mode = GPIO_MODE_OUTPUT_OD; g.Pull = GPIO_PULLUP; g.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(ADB_I2C_SCL_PORT, &g);
+    g.Pin = ADB_I2C_SDA_PIN; g.Mode = GPIO_MODE_INPUT;
+    HAL_GPIO_Init(ADB_I2C_SDA_PORT, &g);
+    HAL_GPIO_WritePin(ADB_I2C_SCL_PORT, ADB_I2C_SCL_PIN, GPIO_PIN_SET);
+    for (int i = 0; i < 9 && HAL_GPIO_ReadPin(ADB_I2C_SDA_PORT, ADB_I2C_SDA_PIN) == GPIO_PIN_RESET; i++) {
+        HAL_GPIO_WritePin(ADB_I2C_SCL_PORT, ADB_I2C_SCL_PIN, GPIO_PIN_RESET); adb_delay_us(5u);
+        HAL_GPIO_WritePin(ADB_I2C_SCL_PORT, ADB_I2C_SCL_PIN, GPIO_PIN_SET);   adb_delay_us(5u);
+    }
+    g.Pin = ADB_I2C_SDA_PIN; g.Mode = GPIO_MODE_OUTPUT_OD;   /* STOP condition: SDA rises while SCL is high */
+    HAL_GPIO_Init(ADB_I2C_SDA_PORT, &g);
+    HAL_GPIO_WritePin(ADB_I2C_SDA_PORT, ADB_I2C_SDA_PIN, GPIO_PIN_RESET); adb_delay_us(5u);
+    HAL_GPIO_WritePin(ADB_I2C_SDA_PORT, ADB_I2C_SDA_PIN, GPIO_PIN_SET);   adb_delay_us(5u);
+    (void)HAL_I2C_Init(d->hi2c);                             /* MspInit restores the alternate-function pins */
+    d->have_recovered = true;
+    d->t_last_recover_us = adb_time_us();
+}
+
+static adb_status_t i2c_do(adb_i2c_dev_t *d, const uint8_t *tx, uint16_t txlen, uint8_t *rx, uint16_t rxlen)
+{
+    uint16_t dev = (uint16_t)(d->addr7 << 1);                /* HAL wants the 8-bit (shifted) address */
+    if (txlen > 0u) {                                        /* each HAL call ends with STOP, as the datasheet figures show */
+        adb_status_t s = from_hal(HAL_I2C_Master_Transmit(d->hi2c, dev, (uint8_t *)(uintptr_t)tx, txlen, ADB_I2C_TIMEOUT_MS));
+        if (s != ADB_OK) return s;
+    }
+    if (rxlen > 0u) return from_hal(HAL_I2C_Master_Receive(d->hi2c, dev, rx, rxlen, ADB_I2C_TIMEOUT_MS));
+    return ADB_OK;
+}
+
+/* On failure: recover the bus (rate-limited, so an absent sensor does not cause constant re-initialisation)
+ * and retry the transfer once. */
+static adb_status_t i2c_with_recovery(adb_i2c_dev_t *d, const uint8_t *tx, uint16_t txlen, uint8_t *rx, uint16_t rxlen)
+{
+    adb_status_t s = i2c_do(d, tx, txlen, rx, rxlen);
+    if (s != ADB_OK && (!d->have_recovered || (uint32_t)(adb_time_us() - d->t_last_recover_us) >= I2C_RECOVER_MIN_INTERVAL_US)) {
+        adb_i2c_recover(d);
+        s = i2c_do(d, tx, txlen, rx, rxlen);
+    }
+    return s;
+}
+
+static adb_status_t i2c_write(void *ctx, const uint8_t *tx, uint16_t len)
+{
+    adb_i2c_dev_t *d = ctx;
+    if (!d || !tx || len == 0u || len > 16u) return ADB_ERR_PARAM;
+    return i2c_with_recovery(d, tx, len, NULL, 0u);
+}
+static adb_status_t i2c_write_read(void *ctx, const uint8_t *tx, uint16_t txlen, uint8_t *rx, uint16_t rxlen)
+{
+    adb_i2c_dev_t *d = ctx;
+    if (!d || !tx || !rx || txlen == 0u || rxlen == 0u || txlen > 16u || rxlen > 16u) return ADB_ERR_PARAM;
+    return i2c_with_recovery(d, tx, txlen, rx, rxlen);
+}
+
+void adb_platform_i2c_bus(adb_bus_t *bus, adb_i2c_dev_t *dev)
+{
+    bus->ctx = dev; bus->kind = ADB_BUS_I2C;
+    bus->write = i2c_write; bus->write_read = i2c_write_read; bus->read = NULL; bus->delay_us = bus_delay;
 }
 
 /* ---- CAN ---- */

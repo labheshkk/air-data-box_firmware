@@ -7,7 +7,7 @@ platform file so it can change without touching driver logic.
 | # | Assumption | Where it lives | Risk if wrong |
 |---|---|---|---|
 | A1 | Drivers are bus-agnostic through `adb_bus_t` | `Drivers/Common/adb_bus.h` | none |
-| A2 | Reference wiring: all three sensors on one SPI bus, separate chip selects (RSC needs CS_ADC and CS_EE) | `Platform/stm32h7/board_config.h` | pin map from schematic |
+| A2 | ~~one shared SPI bus~~ **replaced by the board document (13.11.2026):** BMP581 on SPI4, RSC on SPI2, MS5611 on I2C4 | `Platform/stm32h7/board_config.h`, `docs/BOARD_INTEGRATION.md` | none for sensors; CAN/clock/power still pending |
 | A3 | Sensors at 3.3 V | hardware | level shifting |
 | A4 | BMP581: OSR_P x4, OSR_T x1, 50 Hz, normal mode | `app_default_cfg()` | tune on bench |
 | A5 | MS5611: OSR 4096, temperature every 8th sample | `app_default_cfg()` | lower rate (~50 Hz) |
@@ -21,7 +21,7 @@ platform file so it can change without touching driver logic.
 
 ## B. Questions for the company (send as one email)
 1. Hardware: dev board or custom PCB? Schematic / pin list (sensor bus, chip selects, CAN transceiver)?
-2. DroneCAN: which autopilot and parameters (airspeed from RawAirData and/or IAS?), node ID (static or dynamic), CAN bitrate, publish rates? Is GetNodeInfo / parameter service required?
+2. DroneCAN: ~~which autopilot~~ ArduPilot (ArduCopter 4.6.2) - answered; still open: the parameters used (`ARSPD_TYPE`, `CAN_P1_DRIVER`...), node ID (static or dynamic), CAN bitrate, publish rates, GetNodeInfo / parameter service?
 3. Is +/-60 mbar (about 99 m/s IAS) sufficient for the platform?
 4. Required latency/rate for airspeed and altitude? Is pressure altitude required on the bus (the standard air-data set has no altitude message)?
 5. Acceptance test: instruments and tools the reviewer will use?

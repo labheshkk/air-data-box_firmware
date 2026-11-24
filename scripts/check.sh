@@ -15,6 +15,13 @@ for f in Platform/stm32h7/adb_platform.c Platform/stm32h7/app_main.c; do
     gcc -std=c11 -fsyntax-only -Wall -Wextra -Wconversion -Wshadow -Werror -DADB_HOST_SYNTAX_CHECK \
         -IPlatform/stub -IPlatform/stm32h7 $INC "$f"
 done
+if command -v python3 >/dev/null 2>&1; then
+    echo "[validate] CubeIDE/air_data_box.ioc vs Platform/stm32h7/board_config.h (consistency only - not a CubeMX load test)"
+    python3 scripts/validate_ioc.py
+    python3 scripts/validate_ioc.py --selftest > /dev/null
+else
+    echo "[skip] python3 not found: .ioc validation skipped"
+fi
 echo "[test] host unit tests (ASan + UBSan)"
 make -C Tests clean test
 echo "ALL CHECKS PASSED"
